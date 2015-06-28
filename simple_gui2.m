@@ -4,17 +4,19 @@ function simple_gui2
 % plots the selected data in the axes.
  
    %  Create and then hide the GUI as it is being constructed.
-   f = figure('Visible','off','Position',[360,500,450,285]);
+   f = figure( 'Visible', 'off', 'Position', [360,500,940,340] );
  
    %  Construct the components.
-   hsurf = uicontrol('Style','pushbutton','String','Surf','Position',[315,220,70,25],'Callback',{@surfbutton_Callback});
-   hmesh = uicontrol('Style','pushbutton','String','Mesh','Position',[315,180,70,25],'Callback',{@meshbutton_Callback});
-   hcontour = uicontrol('Style','pushbutton','String','Countour','Position',[315,135,70,25],'Callback',{@contourbutton_Callback}); 
-   hSelectImage1 = uicontrol( 'Style', 'pushbutton', 'String', 'img1', 'Position', [315,90,70,25], 'Callback', {@fileSelect_1_Callback} );
-   htext = uicontrol('Style','text','String','Select Data','Position',[325,60,60,15]);
-   hpopup = uicontrol('Style','popupmenu','String',{'Peaks','Membrane','Sinc'},'Position',[300,30,100,25],'Callback',{@popup_menu_Callback});
-   ha = axes('Units','Pixels','Position',[50,60,200,185]); 
-   align([hsurf,hmesh,hcontour,htext,hpopup],'Center','None');
+   hClear = uicontrol( 'Style', 'pushbutton', 'String', 'Clear', 'Position', [440,300,70,25], 'Callback', {@clear_button_Callback} );
+   hCopy = uicontrol( 'Style', 'pushbutton', 'String', 'Copy', 'Position', [440,260,70,25], 'Callback', {@copy_button_Callback});
+   hPaste = uicontrol( 'Style', 'pushbutton', 'String', 'Paste', 'Position', [440,220,70,25], 'Callback', {@paste_button_Callback}); 
+   hSelectImage1 = uicontrol( 'Style', 'pushbutton', 'String', 'image 1', 'Position', [440,180,70,25], 'Callback', {@select_button_1_Callback} );
+   hSelectImage2 = uicontrol( 'Style', 'pushbutton', 'String', 'image 2', 'Position', [440,140,70,25], 'Callback', {@select_button_2_Callback} );
+   htext = uicontrol('Style','text','String','Select Data','Position',[440,100,60,15]);
+   hpopup = uicontrol('Style','popupmenu','String',{'Peaks','Membrane','Sinc'},'Position',[440,60,100,25],'Callback',{@popup_menu_Callback});
+   hAxes1 = axes( 'Units', 'Pixels', 'Position', [20,20,400,300] );
+   hAxes2 = axes( 'Units', 'Pixels', 'Position', [520,20,400,300] );
+   %align( [ hClear, hCopy, hPaste, htext, hpopup ], 'Center', 'None' );
    
    % Create the data to plot.
    peaks_data = peaks(35);
@@ -22,15 +24,33 @@ function simple_gui2
    [x,y] = meshgrid(-8:.5:8);
    r = sqrt(x.^2+y.^2) + eps;
    sinc_data = sin(r)./r;
-   global IMG1;
+   global imageSource;
+   global imageTarget;
+   global imageOutput;
    global hCreatePolygon;
    global polygonPoints;
    polygonPoints = [];
+   global boundaryPoints;
+   boundaryPoints = [];
+   global hPastePolygon;
+   hPastePolygon = [];
+   global polygonMask;
+   polygonMask = [];
+   global boundaryMask;
+   boundaryMask = [];
+   global polygonInsidePoints;
+   polygonInsidePoints = [];
+   global boundaryInsidePoints;
+   boundaryInsidePoints = [];
+   global polygonInsideValue;
+   polygonInsideValue = [];
+   global lambdaList;
+   lambdaList = [];
    
    % Initialize the GUI.
    % Change units to normalized so components resize 
    % automatically.
-   set([f,ha,hsurf,hmesh,hcontour,htext,hpopup],...
+   set( [ f, hAxes1, hAxes2, hClear, hCopy, hPaste, htext, hpopup ],...
    'Units','normalized');
    %Create a plot in the axes.
    current_data = peaks_data;
@@ -49,7 +69,7 @@ function simple_gui2
    %  Pop-up menu callback. Read the pop-up menu Value property
    %  to determine which item is currently displayed and make it
    %  the current data.
-      function popup_menu_Callback(source,eventdata) 
+      function popup_menu_Callback( source, eventdata ) 
          % Determine the selected data set.
          str = get(source, 'String');
          val = get(source,'Value');
@@ -67,34 +87,76 @@ function simple_gui2
    % Push button callbacks. Each callback plots current_data in
    % the specified plot type.
  
-   function surfbutton_Callback(source,eventdata) 
+   function clear_button_Callback( source, eventdata ) 
    % Display surf plot of the currently selected data.
-      surf(current_data);
+      delete( hCreatePolygon );
+      delete( hPastePolygon );
    end
  
-   function meshbutton_Callback(source,eventdata) 
+   function copy_button_Callback( source, eventdata ) 
    % Display mesh plot of the currently selected data.
-      mesh(current_data);
+       polygonMask = createMask( hCreatePolygon );
+       [ x, y ] = find( polygonMask );
+       polygonInsidePoints = [ x, y ];
+       for ii=1:size(polygonInsidePoints,1)
+           polygonInsideValue(ii) = imageSource( polygonInsidePoints(ii,1), polygonInsidePoints(ii,2) );
+       end
+       return_copy=1
    end
  
-   function contourbutton_Callback(source,eventdata) 
+   function paste_button_Callback( source, eventdata ) 
    % Display contour plot of the currently selected data.
-      contour(current_data);
+       boundaryPoints = polygonPoints;
+       axes( hAxes2 );
+       hold on;
+       hPastePolygon = impoly( gca, polygonPoints );
+       setVerticesDraggable( hPastePolygon, 0 );
+       addNewPositionCallback( hPastePolygon, @move_polygon_callback );
+       fcn2 = makeConstrainToRectFcn( 'impoly', get(gca,'XLim'), get(gca,'YLim') );
+       setPositionConstraintFcn( hPastePolygon, fcn2 );
+       lambdaList = MVC( polygonPoints, polygonInsidePoints );
    end 
    
    % File selection
-    function fileSelect_1_Callback(source,eventdata)
-        [FileName,PathName] = uigetfile({'*.png';'*.jpg'},'Select the MATLAB code file')
-        %FullPath = strcat(PathName,'\');
-        %FullPath = strcat(FullPath,FileName);
-        FullPath = strcat(PathName,FileName);
-        img1 = imread(FullPath);
-        IMG1 = image(img1)
-        hold on
-        set(IMG1,'ButtonDownFcn',{@image_click_Callback});
+    function select_button_1_Callback( source, eventdata )
+        [FileName,PathName] = uigetfile( {'*.png';'*.jpg'}, 'Select the MATLAB code file' );
+        FullPath = strcat( PathName, FileName );
+        imageSource = imread( FullPath );
+        axes( hAxes1 );
+        image( imageSource );
+        hold on;
+        hCreatePolygon = impoly;
+        polygonPoints = getPosition( hCreatePolygon );
+        addNewPositionCallback( hCreatePolygon, @add_new_position_callback );
+        fcn = makeConstrainToRectFcn( 'impoly', get(gca,'XLim'), get(gca,'YLim') );
+        setPositionConstraintFcn( hCreatePolygon, fcn );
+        %set(IMG1,'ButtonDownFcn',{@image_click_Callback});
     end
- 
-    % Draw on image
+    
+    function select_button_2_Callback( source, eventdata )
+        [ FileName, PathName ] = uigetfile( {'*.png';'*.jpg'}, 'Select the MATLAB code file' );
+        FullPath = strcat( PathName, FileName );
+        imageTarget = imread( FullPath );
+        imageOutput = imageTarget;
+        axes( hAxes2 );
+        image( imageOutput );
+        hold on;
+    end
+  
+    function add_new_position_callback( p )
+        polygonPoints = p;
+    end
+    
+    function move_polygon_callback( p )
+        boundaryPoints = p;
+        imageOutput = imageTarget;
+        boundaryMask = createMask( hPastePolygon );
+        [ x, y ] = find( boundaryMask );
+        boundaryInsidePoints = [ x, y ];
+        
+    end
+    
+        % Draw on image
     function image_click_Callback( source, eventdata )
         %{
         %% old style
