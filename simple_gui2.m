@@ -4,7 +4,7 @@ function simple_gui2
 % plots the selected data in the axes.
  
    %  Create and then hide the GUI as it is being constructed.
-   f = figure( 'Visible', 'off', 'Position', [360,500,940,340] );
+   window = figure( 'Visible', 'off', 'Position', [360,500,940,340] );
  
    %  Construct the components.
    hClear = uicontrol( 'Style', 'pushbutton', 'String', 'Clear', 'Position', [440,300,70,25], 'Callback', {@clear_button_Callback} );
@@ -50,17 +50,16 @@ function simple_gui2
    % Initialize the GUI.
    % Change units to normalized so components resize 
    % automatically.
-   set( [ f, hAxes1, hAxes2, hClear, hCopy, hPaste, htext, hpopup ],...
-   'Units','normalized');
+   set( [ window, hAxes1, hAxes2, hClear, hCopy, hPaste, htext, hpopup ], 'Units', 'normalized' );
    %Create a plot in the axes.
    current_data = peaks_data;
    surf(current_data);
    % Assign the GUI a name to appear in the window title.
-   set(f,'Name','Simple GUI')
+   set( window, 'Name', 'Simple GUI' )
    % Move the GUI to the center of the screen.
-   movegui(f,'center')
+   movegui( window, 'center' )
    % Make the GUI visible.
-   set(f,'Visible','on');
+   set( window, 'Visible', 'on' );
  
    %  Callbacks for simple_gui. These callbacks automatically
    %  have access to component handles and initialized data 
@@ -153,7 +152,8 @@ function simple_gui2
         boundaryMask = createMask( hPastePolygon );
         [ x, y ] = find( boundaryMask );
         boundaryInsidePoints = [ x, y ];
-        
+        newIntensity = mvcClone( lambdaList, imageTarget, imageSource, polygonInsidePoints, boundaryInsidePoints, polygonPoints, boundaryPoints );
+        size(newIntensity)
     end
     
         % Draw on image
